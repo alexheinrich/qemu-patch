@@ -13,10 +13,12 @@ export PATH="/home/amh/Development/buildroot/output/host/bin:${PATH}"
 exec qemu-system-aarch64 \
     -M virt \
     -cpu cortex-a53 \
+    -serial mon:stdio \
+    -serial /dev/tty10 \
     -nographic \
     -smp 1 \
     -kernel Image \
-    -append "rootwait root=/dev/vda console=ttyAMA0" \
+    -append "rootwait root=/dev/vda console=ttyAMA1" \
     -netdev user,id=eth0 \
     -device virtio-net-device,netdev=eth0 \
     -drive file=rootfs.ext4,if=none,format=raw,id=hd0 \

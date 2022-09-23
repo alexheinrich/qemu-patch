@@ -468,7 +468,7 @@ build_iort(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
  * Rev: 1.07
  */
 static void
-build_spcr(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+build_spcr(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms, int uart)
 {
     AcpiTable table = { .sig = "SPCR", .rev = 2, .oem_id = vms->oem_id,
                         .oem_table_id = vms->oem_table_id };
@@ -480,14 +480,14 @@ build_spcr(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
     build_append_int_noprefix(table_data, 0, 3); /* Reserved */
     /* Base Address */
     build_append_gas(table_data, AML_AS_SYSTEM_MEMORY, 8, 0, 1,
-                     vms->memmap[VIRT_UART].base);
+                     vms->memmap[uart].base);
     /* Interrupt Type */
     build_append_int_noprefix(table_data,
         (1 << 3) /* Bit[3] ARMH GIC interrupt */, 1);
     build_append_int_noprefix(table_data, 0, 1); /* IRQ */
     /* Global System Interrupt */
     build_append_int_noprefix(table_data,
-                              vms->irqmap[VIRT_UART] + ARM_SPI_BASE, 4);
+                              vms->irqmap[uart] + ARM_SPI_BASE, 4);
     build_append_int_noprefix(table_data, 3 /* 9600 */, 1); /* Baud Rate */
     build_append_int_noprefix(table_data, 0 /* No Parity */, 1); /* Parity */
     /* Stop Bits */
@@ -628,7 +628,7 @@ build_gtdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 
 /* Debug Port Table 2 (DBG2) */
 static void
-build_dbg2(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+build_dbg2(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms, int uart)
 {
     AcpiTable table = { .sig = "DBG2", .rev = 0, .oem_id = vms->oem_id,
                         .oem_table_id = vms->oem_table_id };
@@ -672,11 +672,11 @@ build_dbg2(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 
     /* BaseAddressRegister[] */
     build_append_gas(table_data, AML_AS_SYSTEM_MEMORY, 8, 0, 1,
-                     vms->memmap[VIRT_UART].base);
+                     vms->memmap[uart].base);
 
     /* AddressSize[] */
     build_append_int_noprefix(table_data,
-                              vms->memmap[VIRT_UART].size, 4);
+                              vms->memmap[uart].size, 4);
 
     /* NamespaceString[] */
     g_array_append_vals(table_data, name, namespace_length);
@@ -859,8 +859,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
      */
     scope = aml_scope("\\_SB");
     acpi_dsdt_add_cpus(scope, vms);
-    acpi_dsdt_add_uart(scope, &memmap[VIRT_UART],
-                       (irqmap[VIRT_UART] + ARM_SPI_BASE));
+    acpi_dsdt_add_uart(scope, &memmap[VIRT_UART0],
+                       (irqmap[VIRT_UART0] + ARM_SPI_BASE));
+    acpi_dsdt_add_uart(scope, &memmap[VIRT_UART1],
+                       (irqmap[VIRT_UART1] + ARM_SPI_BASE));
     if (vmc->acpi_expose_flash) {
         acpi_dsdt_add_flash(scope, &memmap[VIRT_FLASH]);
     }
@@ -970,10 +972,16 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
     }
 
     acpi_add_table(table_offsets, tables_blob);
-    build_spcr(tables_blob, tables->linker, vms);
+    build_spcr(tables_blob, tables->linker, vms, VIRT_UART0);
 
     acpi_add_table(table_offsets, tables_blob);
-    build_dbg2(tables_blob, tables->linker, vms);
+    build_dbg2(tables_blob, tables->linker, vms, VIRT_UART0);
+
+    acpi_add_table(table_offsets, tables_blob);
+    build_spcr(tables_blob, tables->linker, vms, VIRT_UART1);
+
+    acpi_add_table(table_offsets, tables_blob);
+    build_dbg2(tables_blob, tables->linker, vms, VIRT_UART1);
 
     if (vms->ras) {
         build_ghes_error_table(tables->hardware_errors, tables->linker);
